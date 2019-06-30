@@ -1,3 +1,28 @@
+### v1.5.2 (29-Jun-2019)
+
+- Fixed an issue where some videos were missing from playlists. Updated to YoutubeExplode v4.7.4.
+- Fixed an issue where the application crashed when pressing the "play" button if there is no program associated with that file type. An error message is now shown instead.
+- Added a context menu button to remove specific download from the list.
+
+### v1.5.1 (21-Jun-2019)
+
+- Fixed an issue where most videos failed to download due to recent YouTube changes. Updated to YoutubeExplode v4.7.3.
+- Popups can now be closed by clicking away.
+- Default max concurrent download count is now 2 instead of being devised from processor count. You can still tweak it as you want in settings.
+
+### v1.5 (15-Jun-2019)
+
+- Changed the presentation of active downloads to use a data grid.
+- Added a context menu button to clear all finished downloads from the list.
+- Improved UI by making the general style more consistent.
+- Fixed an issue where a download sometimes failed due to a race condition in progress reporting. Updated to Gress v1.1.1.
+
+### v1.4 (13-Jun-2019)
+
+- Fixed an issue where the application crashed when an active download failed. Failure will now be reported in the UI with the option to restart download.
+- Fixed an issue where the application crashed when trying to download an unavailable video. Popup with the error message will now be shown instead.
+- Fixed an issue where the application crashed due to unknown encoding in some videos. Updated to YoutubeExplode v4.7.2.
+
 ### v1.3.2 (12-May-2019)
 
 - Fixed an issue where the application crashed when trying to download videos. Updated to YoutubeExplode v4.7.

@@ -1,8 +1,12 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Gress;
 using YoutubeDownloader.Models;
+using YoutubeDownloader.Services;
+using YoutubeDownloader.ViewModels.Framework;
 using YoutubeExplode.Models;
 using PropertyChangedBase = Stylet.PropertyChangedBase;
 
@@ -10,7 +14,11 @@ namespace YoutubeDownloader.ViewModels.Components
 {
     public class DownloadViewModel : PropertyChangedBase
     {
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly IViewModelFactory _viewModelFactory;
+        private readonly DialogManager _dialogManager;
+        private readonly DownloadService _downloadService;
+
+        private CancellationTokenSource _cancellationTokenSource;
 
         public Video Video { get; set; }
 
@@ -22,56 +30,126 @@ namespace YoutubeDownloader.ViewModels.Components
 
         public DownloadOption DownloadOption { get; set; }
 
-        public IProgressOperation ProgressOperation { get; set; }
+        public IProgressManager ProgressManager { get; set; }
 
-        public CancellationToken CancellationToken => _cancellationTokenSource.Token;
+        public IProgressOperation ProgressOperation { get; private set; }
 
-        public bool IsCompleted { get; private set; }
+        public bool IsActive { get; private set; }
+
+        public bool IsSuccessful { get; private set; }
 
         public bool IsCanceled { get; private set; }
 
-        public void MarkAsCompleted()
+        public bool IsFailed { get; private set; }
+
+        public string FailReason { get; private set; }
+
+        public DownloadViewModel(IViewModelFactory viewModelFactory, DialogManager dialogManager, DownloadService downloadService)
         {
-            _cancellationTokenSource.Dispose();
-            ProgressOperation.Dispose();
-            IsCompleted = true;
+            _viewModelFactory = viewModelFactory;
+            _dialogManager = dialogManager;
+            _downloadService = downloadService;
         }
 
-        public bool CanCancel => !IsCompleted && !IsCanceled;
+        public bool CanStart => !IsActive;
+
+        public void Start()
+        {
+            if (!CanStart)
+                return;
+
+            IsActive = true;
+            IsSuccessful = false;
+            IsCanceled = false;
+            IsFailed = false;
+
+            Task.Run(async () =>
+            {
+                // Create cancellation token source
+                _cancellationTokenSource = new CancellationTokenSource();
+
+                // Create progress operation
+                ProgressOperation = ProgressManager.CreateOperation();
+
+                try
+                {
+                    // If download option is not set - get the best download option
+                    if (DownloadOption == null)
+                        DownloadOption = await _downloadService.GetBestDownloadOptionAsync(Video.Id, Format);
+
+                    await _downloadService.DownloadVideoAsync(DownloadOption, FilePath, ProgressOperation, _cancellationTokenSource.Token);
+
+                    IsSuccessful = true;
+                }
+                catch (OperationCanceledException)
+                {
+                    IsCanceled = true;
+                }
+                catch (Exception ex)
+                {
+                    IsFailed = true;
+                    FailReason = ex.Message;
+                }
+                finally
+                {
+                    IsActive = false;
+
+                    _cancellationTokenSource.Dispose();
+                    ProgressOperation.Dispose();
+                }
+            });
+        }
+
+        public bool CanCancel => IsActive && !IsCanceled;
 
         public void Cancel()
         {
             if (!CanCancel)
                 return;
 
-            // Cancel
             _cancellationTokenSource.Cancel();
-            IsCanceled = true;
-
-            // Mark as completed
-            MarkAsCompleted();
         }
 
-        public bool CanShowFile => IsCompleted && !IsCanceled;
+        public bool CanShowFile => IsSuccessful;
 
-        public void ShowFile()
+        public async void ShowFile()
         {
             if (!CanShowFile)
                 return;
 
-            // This opens explorer, navigates to the output directory and selects the video file
-            Process.Start("explorer", $"/select, \"{FilePath}\"");
+            try
+            {
+                // This opens explorer, navigates to the output directory and selects the video file
+                Process.Start("explorer", $"/select, \"{FilePath}\"");
+            }
+            catch (Exception ex)
+            {
+                var dialog = _viewModelFactory.CreateMessageBoxViewModel("Error", ex.Message);
+                await _dialogManager.ShowDialogAsync(dialog);
+            }
         }
 
-        public bool CanOpenFile => IsCompleted && !IsCanceled;
+        public bool CanOpenFile => IsSuccessful;
 
-        public void OpenFile()
+        public async void OpenFile()
         {
             if (!CanOpenFile)
                 return;
 
-            // This opens the video file using the default player
-            Process.Start(FilePath);
+            try
+            {
+                // This opens the video file using the default player
+                Process.Start(FilePath);
+            }
+            catch (Exception ex)
+            {
+                var dialog = _viewModelFactory.CreateMessageBoxViewModel("Error", ex.Message);
+                await _dialogManager.ShowDialogAsync(dialog);
+            }
         }
+
+        public bool CanRestart => CanStart && !IsSuccessful;
+
+        public void Restart() => Start();
     }
 }
